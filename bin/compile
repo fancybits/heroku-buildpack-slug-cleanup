@@ -5,21 +5,33 @@ set -euo pipefail
 readonly BUILD_DIR=$1
 readonly CLEANUP_FILE=".slugcleanup"
 
-cd ${BUILD_DIR}
+cd "${BUILD_DIR}"
 
 echo "-----> Cleaning up slug..."
 
-while read location; do
+# Enable nullglob so patterns with no matches expand to empty
+shopt -s nullglob
+
+while IFS= read -r location || [[ -n "$location" ]]; do
   [[ -z "${location}" ]] && continue
 
-  location_items=($(echo ${location}))
+  # Expand the pattern into an array
+  # shellcheck disable=SC2086
+  files=( ${location} )
 
-  if [[ -e ${location_items[0]} ]]; then
-    echo "       Removing location ${location}"
+  if (( ${#files[@]} > 0 )); then
+    # Get size before removal - don't quote location to allow glob expansion
+    # shellcheck disable=SC2086
+    size=$(du -sh ${location} 2>/dev/null | cut -f1)
+    echo "       Removing location ${location} (${size:-unknown size})"
+    # shellcheck disable=SC2086
     rm -rf ${location}
   else
     echo "       Ignoring not found location ${location}"
   fi
-done <${CLEANUP_FILE}
+done <"${CLEANUP_FILE}"
+
+# Reset nullglob to its original state
+shopt -u nullglob
 
 echo "       Slug cleanup completed"
